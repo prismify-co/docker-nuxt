@@ -1,2 +1,2 @@
 # docker-nuxt
-A dockerized Nuxt.js application
+A docker file for Nuxt.js applications
