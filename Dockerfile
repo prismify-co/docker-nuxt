@@ -1,84 +1,86 @@
-#
+##
 # OS
-#
+##
 FROM node:alpine as os
 
 RUN mkdir -p /app
 
-RUN apk add --update yarn
-RUN apk add --update git
+RUN  apk add --update --no-cache curl git && cd /tmp && \
+    curl -#L https://github.com/tj/node-prune/releases/download/v1.0.1/node-prune_1.0.1_linux_amd64.tar.gz | tar -xvzf- && \
+    mv -v node-prune /usr/local/bin && rm -rvf * && \
+    echo "yarn cache clean && node-prune" > /usr/local/bin/node-clean && chmod +x /usr/local/bin/node-clean
 
-EXPOSE 3000
-
-#
+##
 # Base
-#
+##
 FROM os as base
 
-ENV NODE_ENV=production
-
 WORKDIR /app
-COPY package*.json *lock ./
 
-RUN yarn install --production && yarn cache clean
-
-#
-# Development
-#
-FROM base as development
-
-WORKDIR /app
-COPY . .
-
-ENV PATH=/app/node_modules/.bin:$PATH
 ENV NODE_ENV=development
-ENV HOST 0.0.0.0
 
-RUN yarn install --development
-CMD [ "yarn", "dev" ]
+COPY package.json ./
 
-#
-# Source (copy in source)
-#
-FROM base as source
+RUN yarn
 
-WORKDIR /app
-
-COPY . .
-
-#
+##
 # Test
-#
+##
 FROM os as test
 
-ENV HOST 0.0.0.0
-
 WORKDIR /app
+
 COPY . .
-RUN yarn install
+COPY --from=base ./app/yarn.lock ./yarn.lock
+COPY --from=base ./app/node_modules ./node_modules/
+
+RUN yarn
 
 CMD [ "yarn", "test" ]
 
-#
-# Build
-#
-FROM source as build
 
+##
+# Development
+##
+FROM os as development
+
+WORKDIR /app
 ENV NODE_ENV=development
-
-COPY --from=development /app/node_modules /app/node_modules
-
-RUN yarn build
-
-#
-# Production
-#
-FROM build as production
-
-ENV NODE_ENV=production
 ENV HOST 0.0.0.0
 
-COPY --from=base /app/node_modules ./node_modules/
-COPY --from=build /app/.nuxt .nuxt
+COPY . .
+COPY --from=base ./app/node_modules ./node_modules/
 
-CMD [ "node", "server/index.js" ]
+CMD [ "yarn", "dev" ]
+
+##
+# Build
+##
+FROM os as build
+
+WORKDIR /app
+
+COPY . .
+COPY --from=base ./app/yarn.lock ./yarn.lock
+COPY --from=base ./app/node_modules ./node_modules/
+
+RUN yarn
+RUN yarn build
+RUN yarn cache clean && node-clean
+
+##
+# Production
+##
+FROM os as production
+
+WORKDIR /app
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+
+COPY package.json ./
+COPY nuxt.config.js ./
+
+COPY --from=build ./app/ ./
+
+EXPOSE 3000
+CMD ["yarn", "start"]
