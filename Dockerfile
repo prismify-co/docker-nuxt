@@ -45,6 +45,7 @@ CMD [ "yarn", "test" ]
 FROM os as development
 
 WORKDIR /app
+
 ENV NODE_ENV=development
 ENV HOST 0.0.0.0
 
@@ -74,6 +75,7 @@ RUN yarn cache clean && node-clean
 FROM os as production
 
 WORKDIR /app
+
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 
@@ -83,4 +85,5 @@ COPY nuxt.config.js ./
 COPY --from=build ./app/ ./
 
 EXPOSE 3000
+
 CMD ["yarn", "start"]
